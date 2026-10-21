@@ -12,11 +12,19 @@
       "Bash(docker compose ps)",
       "Bash(docker compose logs:*)"
     ],
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
-      "Bash(git push:*)",
-      "Bash(rm -rf:*)"
+    "deny": ["Read(./.env)", "Read(./.env.*)", "Bash(rm -rf:*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v ruff >/dev/null 2>&1 || exit 0; [ -d backend ] || exit 0; ruff format backend --quiet; ruff check backend 1>&2 || exit 2"
+          }
+        ]
+      }
     ]
   }
 }

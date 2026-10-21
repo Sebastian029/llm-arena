@@ -6,7 +6,7 @@ The author is a junior developer. Goal: a portfolio project and a real understan
 Arena (one prompt to 2-4 models in parallel, streaming, voting), Elo ranking, background test sets (evals), automatic scoring (matching, rules, LLM-as-judge), results dashboard (quality/cost/latency), cost control, retry on 429 and resumable test runs.
 
 ## Stack
-Python 3.12, FastAPI, PostgreSQL, Redis, Celery, pytest, ruff, React (Vite), Docker + docker-compose, GitHub Actions. Provider adapters: OpenAI, Anthropic, Ollama. No extra libraries without a justification and my approval.
+Python 3.12, FastAPI, PostgreSQL, Redis, Celery, pytest, ruff, React (Vite), Docker + docker-compose, GitHub Actions. Provider adapters: OpenAI, Anthropic, Ollama. No extra libraries without a justification and my approval. Agreed so far: SQLAlchemy 2 + Alembic, official Anthropic/OpenAI SDKs, httpx.
 
 ## Structure
 - backend/app/api: endpoints (thin, no logic)
@@ -19,6 +19,11 @@ Python 3.12, FastAPI, PostgreSQL, Redis, Celery, pytest, ruff, React (Vite), Doc
 - backend/tests: pytest tests
 - frontend/src: pages, components, api
 - docs: stages, decisions, configuration map
+
+## Project state and resuming work
+- Progress lives in files, not in chat: docs/stages.md (checkboxes = which stage is done), docs/decisions.md (why), git log (what).
+- In a fresh chat: read this file, docs/stages.md and docs/decisions.md, find the first unticked stage, and start it with /stage N.
+- The compared object is a "variant" = model + system prompt + parameters.
 
 ## Commands
 - Tests: cd backend && pytest
