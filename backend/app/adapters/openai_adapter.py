@@ -14,8 +14,8 @@ from app.adapters.base import (
 )
 from app.adapters.errors import (
     AdapterError,
-    InvalidRequestError,
     ProviderUnavailableError,
+    QuotaExceededError,
     error_from_status,
     parse_retry_after,
 )
@@ -65,7 +65,8 @@ class OpenAIAdapter(ModelAdapter):
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        input_tokens = output_tokens = 0
+        # None = unknown: stays None if the stream ends without a usage chunk
+        input_tokens = output_tokens = None
         finish_reason = None
         try:
             async with await self._client.chat.completions.create(**kwargs) as stream:
@@ -116,6 +117,6 @@ def _translate_error(exc: openai.APIError) -> AdapterError:
 
     if exc.status_code == 429 and exc.code == "insufficient_quota":
         # out of credit: waiting will not help, so this must not be treated as a rate limit
-        return InvalidRequestError(exc.message, PROVIDER)
+        return QuotaExceededError(exc.message, PROVIDER)
     retry_after = parse_retry_after(exc.response.headers.get("retry-after"))
     return error_from_status(exc.status_code, exc.message, PROVIDER, retry_after)

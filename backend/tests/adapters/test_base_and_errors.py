@@ -8,6 +8,7 @@ from app.adapters.errors import (
     AuthenticationError,
     InvalidRequestError,
     ProviderUnavailableError,
+    QuotaExceededError,
     RateLimitError,
     error_from_status,
     parse_retry_after,
@@ -55,7 +56,13 @@ def test_rate_limit_error_retry_after_is_optional() -> None:
 
 @pytest.mark.parametrize(
     "error_class",
-    [AuthenticationError, InvalidRequestError, ProviderUnavailableError, RateLimitError],
+    [
+        AuthenticationError,
+        InvalidRequestError,
+        ProviderUnavailableError,
+        QuotaExceededError,
+        RateLimitError,
+    ],
 )
 def test_all_errors_can_be_caught_as_adapter_error(error_class: type[AdapterError]) -> None:
     with pytest.raises(AdapterError):
@@ -68,6 +75,8 @@ def test_all_errors_can_be_caught_as_adapter_error(error_class: type[AdapterErro
         (400, InvalidRequestError),
         (404, InvalidRequestError),
         (413, InvalidRequestError),
+        (408, ProviderUnavailableError),
+        (409, ProviderUnavailableError),
         (401, AuthenticationError),
         (403, AuthenticationError),
         (429, RateLimitError),

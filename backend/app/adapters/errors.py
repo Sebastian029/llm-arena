@@ -29,6 +29,10 @@ class InvalidRequestError(AdapterError):
     """The provider rejected the request itself (unknown model, bad parameter). Do not retry."""
 
 
+class QuotaExceededError(AdapterError):
+    """The account is out of credit or over its spending limit. Waiting will not help."""
+
+
 class ProviderUnavailableError(AdapterError):
     """Timeout, connection problem or a 5xx answer. May work if retried."""
 
@@ -38,15 +42,16 @@ def error_from_status(
 ) -> AdapterError:
     """Choose our error for an HTTP error status. Shared by all adapters.
 
-    429 -> RateLimitError, 401/403 -> AuthenticationError, 5xx -> ProviderUnavailableError
-    (this includes Anthropic's 529 "overloaded"), anything else (400, 404 for an unknown
+    429 -> RateLimitError, 401/403 -> AuthenticationError, 408/409 and 5xx ->
+    ProviderUnavailableError (408 is a timeout, 409 a conflict that usually clears;
+    5xx includes Anthropic's 529 "overloaded"), anything else (400, 404 for an unknown
     model, 413, 422) -> InvalidRequestError.
     """
     if status == 429:
         return RateLimitError(message, provider, retry_after=retry_after)
     if status in (401, 403):
         return AuthenticationError(message, provider)
-    if status >= 500:
+    if status in (408, 409) or status >= 500:
         return ProviderUnavailableError(message, provider)
     return InvalidRequestError(message, provider)
 

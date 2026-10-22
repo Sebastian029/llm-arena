@@ -9,6 +9,7 @@ from app.adapters.errors import (
     AuthenticationError,
     InvalidRequestError,
     ProviderUnavailableError,
+    QuotaExceededError,
     RateLimitError,
 )
 from app.adapters.openai_adapter import OpenAIAdapter
@@ -141,15 +142,15 @@ async def test_stream_yields_text_chunks_then_final_chunk_with_usage() -> None:
     assert chunks[-1].latency_ms >= 0
 
 
-async def test_stream_without_usage_chunk_reports_zero_tokens() -> None:
+async def test_stream_without_usage_chunk_reports_unknown_tokens() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         return stream_response("Hi", with_usage=False)  # e.g. the stream was cut short
 
     chunks = [chunk async for chunk in make_adapter(handler).stream(REQUEST)]
 
     assert chunks[-1].is_final is True
-    assert chunks[-1].input_tokens == 0
-    assert chunks[-1].output_tokens == 0
+    assert chunks[-1].input_tokens is None  # unknown, not "0 tokens"
+    assert chunks[-1].output_tokens is None
 
 
 @pytest.mark.parametrize(
@@ -230,7 +231,7 @@ async def test_429_for_insufficient_quota_is_not_a_rate_limit() -> None:
         }
         return httpx2.Response(429, json=body)
 
-    with pytest.raises(InvalidRequestError, match="quota"):
+    with pytest.raises(QuotaExceededError, match="quota"):
         await make_adapter(handler).generate(REQUEST)
 
 

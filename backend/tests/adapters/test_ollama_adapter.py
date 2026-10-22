@@ -206,6 +206,44 @@ async def test_broken_answer_becomes_provider_unavailable(body: bytes) -> None:
         await make_adapter(handler).generate(REQUEST)
 
 
+async def test_generate_raises_error_field_from_a_200_answer() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"error": "model crashed"})
+
+    with pytest.raises(ProviderUnavailableError, match="model crashed"):
+        await make_adapter(handler).generate(REQUEST)
+
+
+async def test_generate_rejects_an_answer_that_is_not_done() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": "Hel"}, "done": False})
+
+    with pytest.raises(ProviderUnavailableError, match="incomplete"):
+        await make_adapter(handler).generate(REQUEST)
+
+
+async def test_stream_without_usage_reports_unknown_tokens() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=ndjson({"message": {"content": ""}, "done": True}))
+
+    chunks = [chunk async for chunk in make_adapter(handler).stream(REQUEST)]
+
+    assert chunks[-1].input_tokens is None
+    assert chunks[-1].output_tokens is None
+
+
+async def test_other_httpx_errors_become_provider_unavailable() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.DecodingError("bad gzip body")  # not a TransportError
+
+    with pytest.raises(ProviderUnavailableError):
+        await make_adapter(handler).generate(REQUEST)
+
+    with pytest.raises(ProviderUnavailableError):
+        async for _ in make_adapter(handler).stream(REQUEST):
+            pass
+
+
 async def test_temperature_is_sent_only_when_set() -> None:
     seen: list[httpx.Request] = []
 

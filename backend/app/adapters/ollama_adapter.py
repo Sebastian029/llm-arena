@@ -36,11 +36,12 @@ class OllamaAdapter(ModelAdapter):
         start = time.perf_counter()
         try:
             response = await self._client.post("/api/chat", json=payload)
-        except httpx.TransportError as exc:  # timeouts, refused connection, ...
+        except httpx.HTTPError as exc:  # timeouts, refused connection, bad response body, ...
             raise ProviderUnavailableError(f"Cannot reach Ollama: {exc}", PROVIDER) from exc
         _raise_for_status(response)
 
         data = _parse_json(response.text)
+        _raise_if_error_or_unfinished(data)
         return GenerationResult(
             text=_message_content(data),
             model=data.get("model", request.model),
@@ -64,13 +65,12 @@ class OllamaAdapter(ModelAdapter):
                     if not line.strip():
                         continue
                     data = _parse_json(line)
-                    if "error" in data:  # e.g. the model crashed while answering
-                        raise ProviderUnavailableError(str(data["error"]), PROVIDER)
+                    _raise_if_error(data)
                     if data.get("done"):
                         yield StreamChunk(
                             is_final=True,
-                            input_tokens=data.get("prompt_eval_count", 0),
-                            output_tokens=data.get("eval_count", 0),
+                            input_tokens=data.get("prompt_eval_count"),
+                            output_tokens=data.get("eval_count"),
                             latency_ms=elapsed_ms(start),
                             finish_reason=data.get("done_reason"),
                         )
@@ -78,7 +78,7 @@ class OllamaAdapter(ModelAdapter):
                     yield StreamChunk(text=_message_content(data))
             # The stream closed without a "done" line: the answer is incomplete.
             raise ProviderUnavailableError("Ollama stream ended before it finished", PROVIDER)
-        except httpx.TransportError as exc:
+        except httpx.HTTPError as exc:
             raise ProviderUnavailableError(f"Cannot reach Ollama: {exc}", PROVIDER) from exc
 
     @staticmethod
@@ -103,6 +103,19 @@ def _parse_json(text: str) -> dict:
     if not isinstance(data, dict):
         raise ProviderUnavailableError("Ollama returned an unexpected JSON shape", PROVIDER)
     return data
+
+
+def _raise_if_error(data: dict) -> None:
+    """Ollama can report a failure inside a normal answer, e.g. the model crashed."""
+    if "error" in data:
+        raise ProviderUnavailableError(str(data["error"]), PROVIDER)
+
+
+def _raise_if_error_or_unfinished(data: dict) -> None:
+    """For a non-streamed answer: also reject one that is not marked `done` (cut off)."""
+    _raise_if_error(data)
+    if not data.get("done"):
+        raise ProviderUnavailableError("Ollama answer is incomplete (done is not true)", PROVIDER)
 
 
 def _message_content(data: dict) -> str:
