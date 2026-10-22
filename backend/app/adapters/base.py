@@ -3,15 +3,24 @@
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
 class GenerationRequest:
     """What we ask a model to do: the model, the prompt and the parameters of a variant.
 
-    `temperature=None` means "use the provider's default". Anthropic ignores temperature
-    entirely (its current API rejects it), so a value only has an effect on OpenAI and Ollama.
+    `None` means "use the provider's default".
+    - `temperature`: Anthropic ignores it (its current API rejects it), so it only has an
+      effect on OpenAI and Ollama.
+    - `effort`: how hard the model should think ("low", "medium", "high", ...). Sent as
+      `output_config.effort` (Anthropic), `reasoning_effort` (OpenAI) or `think` (Ollama).
+      Valid values depend on the model; the provider answers 400 for a wrong one. Thinking
+      tokens are billed as output tokens, so a higher effort costs more.
+    - `options`: extra model parameters (top_p, top_k, seed, num_ctx, ...) passed as they are
+      to Ollama. Other providers raise `InvalidRequestError` instead of silently ignoring them.
+      The fields above win over the same key in `options`.
     """
 
     model: str
@@ -19,6 +28,8 @@ class GenerationRequest:
     system_prompt: str | None = None
     temperature: float | None = None
     max_tokens: int = 1024
+    effort: str | None = None
+    options: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -27,12 +38,14 @@ class GenerationResult:
 
     `finish_reason` is "stop" (the model finished) or "length" (it was cut off by
     `max_tokens`). Other provider values are passed through; None means unknown.
+    Token counts are None when the provider did not report them (never 0 as a guess), so
+    a missing count cannot be mistaken for a free call.
     """
 
     text: str
     model: str
-    input_tokens: int
-    output_tokens: int
+    input_tokens: int | None
+    output_tokens: int | None
     latency_ms: float
     finish_reason: str | None = None
 

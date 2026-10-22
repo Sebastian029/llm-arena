@@ -280,3 +280,41 @@ async def test_stream_reports_finish_reason_on_the_final_chunk() -> None:
     chunks = [chunk async for chunk in make_adapter(handler).stream(REQUEST)]
 
     assert chunks[-1].finish_reason == "length"
+
+
+async def test_effort_is_sent_as_reasoning_effort_only_when_set() -> None:
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200, json=completion_json())
+
+    adapter = make_adapter(handler)
+    await adapter.generate(GenerationRequest(model=MODEL, prompt="Hi", effort="medium"))
+    await adapter.generate(GenerationRequest(model=MODEL, prompt="Hi"))
+
+    assert json.loads(seen[0].content)["reasoning_effort"] == "medium"
+    assert "reasoning_effort" not in json.loads(seen[1].content)
+
+
+async def test_options_are_rejected_instead_of_silently_ignored() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise AssertionError("no request should be sent")
+
+    request = GenerationRequest(model=MODEL, prompt="Hi", options={"top_k": 5})
+
+    with pytest.raises(InvalidRequestError, match="options"):
+        await make_adapter(handler).generate(request)
+    with pytest.raises(InvalidRequestError, match="options"):
+        async for _ in make_adapter(handler).stream(request):
+            pass
+
+
+async def test_generate_without_usage_reports_unknown_tokens() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json=completion_json() | {"usage": None})
+
+    result = await make_adapter(handler).generate(REQUEST)
+
+    assert result.input_tokens is None
+    assert result.output_tokens is None

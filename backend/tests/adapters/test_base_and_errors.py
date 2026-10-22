@@ -12,6 +12,7 @@ from app.adapters.errors import (
     RateLimitError,
     error_from_status,
     parse_retry_after,
+    unsupported_options_error,
 )
 
 
@@ -21,6 +22,15 @@ def test_request_has_sensible_defaults() -> None:
     assert request.system_prompt is None
     assert request.temperature is None
     assert request.max_tokens == 1024
+    assert request.effort is None
+    assert request.options == {}
+
+
+def test_requests_do_not_share_their_options_dict() -> None:
+    first = GenerationRequest(model="m", prompt="hi")
+    second = GenerationRequest(model="m", prompt="hi")
+
+    assert first.options is not second.options
 
 
 def test_request_is_immutable() -> None:
@@ -114,3 +124,11 @@ def test_elapsed_ms_measures_time_since_start(monkeypatch: pytest.MonkeyPatch) -
 
 def test_results_default_to_unknown_finish_reason() -> None:
     assert StreamChunk(text="x").finish_reason is None
+
+
+def test_unsupported_options_error_names_the_provider() -> None:
+    error = unsupported_options_error("openai")
+
+    assert isinstance(error, InvalidRequestError)
+    assert error.provider == "openai"
+    assert "options" in str(error)

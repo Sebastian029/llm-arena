@@ -7,7 +7,7 @@ Core idea: the thing we compare is a **variant** = model + system prompt + param
 
 - [x] **0. Foundations** - this file and docs/decisions.md, .env.example, pyproject.toml (ruff, pytest), docker-compose (api, postgres, redis), FastAPI /health + first test, GitHub Actions (ruff + pytest).
 - [x] **1. Provider adapters** - one shared interface (text, tokens, latency, streaming), Ollama / Anthropic / OpenAI implementations, unified errors. Tests with mocked HTTP.
-- [ ] **2. Costs and budget** - price table, `calculate_cost`, budget limit check, all in one place in services/.
+- [x] **2. Costs and budget** - price table, `calculate_cost`, budget limit check, all in one place in services/.
 - [ ] **3. Arena backend** - Variant, Prompt, Run, Response, Vote models + Alembic migrations, parallel calls to 2-4 variants (asyncio), SSE streaming, voting, retry on 429.
 - [ ] **4. Ranking** - Elo (pure function, tested) + win rate + vote count per variant, ranking endpoint.
 - [ ] **5. Frontend: Arena** - Vite + React, variant picker, side-by-side streaming via a single SSE hook, voting, ranking page.

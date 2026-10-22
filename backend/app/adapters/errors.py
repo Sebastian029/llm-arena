@@ -37,6 +37,15 @@ class ProviderUnavailableError(AdapterError):
     """Timeout, connection problem or a 5xx answer. May work if retried."""
 
 
+def unsupported_options_error(provider: str) -> InvalidRequestError:
+    """Error for `GenerationRequest.options` sent to a provider that has no such thing."""
+    return InvalidRequestError(
+        f"{provider} does not support 'options' (only Ollama does); "
+        "use temperature, max_tokens and effort instead",
+        provider,
+    )
+
+
 def error_from_status(
     status: int, message: str, provider: str, retry_after: float | None = None
 ) -> AdapterError:

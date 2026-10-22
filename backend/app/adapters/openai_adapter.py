@@ -18,6 +18,7 @@ from app.adapters.errors import (
     QuotaExceededError,
     error_from_status,
     parse_retry_after,
+    unsupported_options_error,
 )
 
 PROVIDER = "openai"
@@ -52,8 +53,8 @@ class OpenAIAdapter(ModelAdapter):
         return GenerationResult(
             text=(choice.message.content if choice else None) or "",
             model=completion.model,
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
+            input_tokens=usage.prompt_tokens if usage else None,
+            output_tokens=usage.completion_tokens if usage else None,
             latency_ms=elapsed_ms(start),
             finish_reason=choice.finish_reason if choice else None,
         )
@@ -93,6 +94,8 @@ class OpenAIAdapter(ModelAdapter):
     @staticmethod
     def _build_kwargs(request: GenerationRequest) -> dict:
         """Translate our request into SDK arguments. The system prompt is a normal message."""
+        if request.options:
+            raise unsupported_options_error(PROVIDER)
         messages = []
         if request.system_prompt:
             messages.append({"role": "system", "content": request.system_prompt})
@@ -105,6 +108,8 @@ class OpenAIAdapter(ModelAdapter):
         }
         if request.temperature is not None:
             kwargs["temperature"] = request.temperature
+        if request.effort:
+            kwargs["reasoning_effort"] = request.effort
         return kwargs
 
 

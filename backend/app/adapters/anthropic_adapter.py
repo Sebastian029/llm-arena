@@ -17,6 +17,7 @@ from app.adapters.errors import (
     ProviderUnavailableError,
     error_from_status,
     parse_retry_after,
+    unsupported_options_error,
 )
 
 PROVIDER = "anthropic"
@@ -30,6 +31,7 @@ class AnthropicAdapter(ModelAdapter):
 
     `request.temperature` is NOT sent: the current API (SDK 2.x) removed sampling
     parameters and answers 400 when they are present. Claude samples with its defaults.
+    `request.effort` is the way to make Claude variants differ (sent as `output_config`).
     """
 
     def __init__(
@@ -82,6 +84,8 @@ class AnthropicAdapter(ModelAdapter):
     @staticmethod
     def _build_kwargs(request: GenerationRequest) -> dict:
         """Translate our request into SDK arguments. `system` is a separate argument."""
+        if request.options:
+            raise unsupported_options_error(PROVIDER)
         kwargs: dict = {
             "model": request.model,
             "max_tokens": request.max_tokens,
@@ -89,6 +93,8 @@ class AnthropicAdapter(ModelAdapter):
         }
         if request.system_prompt:
             kwargs["system"] = request.system_prompt
+        if request.effort:
+            kwargs["output_config"] = {"effort": request.effort}
         return kwargs
 
 

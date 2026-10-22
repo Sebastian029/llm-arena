@@ -45,8 +45,8 @@ class OllamaAdapter(ModelAdapter):
         return GenerationResult(
             text=_message_content(data),
             model=data.get("model", request.model),
-            input_tokens=data.get("prompt_eval_count", 0),
-            output_tokens=data.get("eval_count", 0),
+            input_tokens=data.get("prompt_eval_count"),
+            output_tokens=data.get("eval_count"),
             latency_ms=elapsed_ms(start),
             finish_reason=data.get("done_reason"),
         )
@@ -83,15 +83,27 @@ class OllamaAdapter(ModelAdapter):
 
     @staticmethod
     def _build_payload(request: GenerationRequest, stream: bool) -> dict:
-        """Translate our request into Ollama's field names (max_tokens is `num_predict`)."""
+        """Translate our request into Ollama's field names (max_tokens is `num_predict`).
+
+        `request.options` is copied first, so our typed fields win over the same key there.
+        """
         messages = []
         if request.system_prompt:
             messages.append({"role": "system", "content": request.system_prompt})
         messages.append({"role": "user", "content": request.prompt})
-        options: dict = {"num_predict": request.max_tokens}
+        options: dict = dict(request.options)
+        options["num_predict"] = request.max_tokens
         if request.temperature is not None:
             options["temperature"] = request.temperature
-        return {"model": request.model, "messages": messages, "stream": stream, "options": options}
+        payload: dict = {
+            "model": request.model,
+            "messages": messages,
+            "stream": stream,
+            "options": options,
+        }
+        if request.effort:
+            payload["think"] = request.effort  # "low" / "medium" / "high" / "max"
+        return payload
 
 
 def _parse_json(text: str) -> dict:

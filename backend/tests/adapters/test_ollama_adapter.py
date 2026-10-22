@@ -272,3 +272,52 @@ async def test_finish_reason_is_reported_for_generate_and_stream() -> None:
 
     assert (await adapter.generate(REQUEST)).finish_reason == "stop"
     assert chunks[-1].finish_reason == "length"
+
+
+async def test_effort_is_sent_as_think_only_when_set() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done": True})
+
+    adapter = make_adapter(handler)
+    await adapter.generate(GenerationRequest(model="m", prompt="Hi", effort="high"))
+    await adapter.generate(GenerationRequest(model="m", prompt="Hi"))
+
+    assert json.loads(seen[0].content)["think"] == "high"
+    assert "think" not in json.loads(seen[1].content)
+
+
+async def test_options_are_passed_through_and_typed_fields_win() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done": True})
+
+    request = GenerationRequest(
+        model="m",
+        prompt="Hi",
+        temperature=0.1,
+        max_tokens=9,
+        options={"top_p": 0.9, "seed": 42, "temperature": 1.5, "num_predict": 999},
+    )
+    await make_adapter(handler).generate(request)
+
+    assert json.loads(seen[0].content)["options"] == {
+        "top_p": 0.9,
+        "seed": 42,
+        "temperature": 0.1,  # the typed field beats options["temperature"]
+        "num_predict": 9,
+    }
+
+
+async def test_generate_without_token_counts_reports_unknown_tokens() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done": True})
+
+    result = await make_adapter(handler).generate(REQUEST)
+
+    assert result.input_tokens is None
+    assert result.output_tokens is None
